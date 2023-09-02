@@ -1,0 +1,196 @@
+---
+title: "duckdb"
+author: "John Little"
+
+editor: "visual"
+---
+
+## Install duckb
+
+`install.packages("duckdb")`
+
+Once installed the following code-chunks will work. I have no clue where the db executable is installed in the LFS, but it must be somewhere. Anyway, the code-chunk below create a database file `my-db.duckdb` installs. In any case, R can create a duckdb database file, and then I can download a separate duckdb executable that also reads the same database file. Therefore, in theory, Tableau can connect to the same file via an ODBC or JDBC connection. There is some interwebs documentation on this but I didn't attempt it. That said one warning is that duckdb is not an industrial/transactional ACID database program. It can be handy for single-user analytics. But if MIDS students want to do a lot of simultaneous querries and writes with potential collisions, a more rhobust database is perhaps advisable. But for teaching purposes, this is a simple way to show how R can read and write via SQL to a database file. That same database file can the source of data for a Tableau query. (Which, with my limited understanding, was their goal.)
+
+## load library packages
+
+```{r}
+library(tidyverse)
+library(duckdb)
+library(DBI)  # so I can connect to the db file and then query via dplyr verbs
+# library(duckdbfs)  This could come in handy but I didn't use it.
+
+```
+
+Most of the information below comes from this [duckdb documentation](https://duckdb.org/docs/archive/0.8.1/api/r).
+
+## Establish DB connection
+
+Shared or not shared between processes? For this script, I'll choose shared
+
+```{r}
+# library("DBI")
+# to start an in-memory database
+# con <- dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+# to use a database file (not shared between processes)
+con <- dbConnect(duckdb::duckdb(), dbdir = "my-db.duckdb", read_only = FALSE)
+# to use a database file (shared between processes)
+# con <- dbConnect(duckdb::duckdb(), dbdir = "my-db.duckdb", read_only = TRUE)
+```
+
+Commented out, but above code chunk `dbConnect(duckdb::duckdb(), dbdir = "my-db.duckdb", read_only = FALSE)` creates a duckdb database file `my-db.duckdb`. That file is saved within the current project directory. Tableau should be able to ODBC or JDBC connect to this file. However, this db file was created as "not shared between processes". Given the limitations of duckdb, I suspect that is the safest way to proceed. That said, It seems theoretically possible that Tableau and R can share the db-file as read-only if they both need to share the database. Further theoretically possible that R could be set as read_write while Tableau is read_only. But that last assumption certainly needs testing, or at minimum review of duckdb documentation.
+
+In the next code-chunk, a test table was created. commented out because it only needs to be created once.
+
+**NOTE**: below, if running the first time, un-comment anything with `##`
+
+```{r}
+# create a table
+## dbExecute(con, "CREATE TABLE items(item VARCHAR, value DECIMAL(10,2), count INTEGER)")
+### DBI::dbRemoveTable(con, "items")
+# insert two items into the table
+## dbExecute(con, "INSERT INTO items VALUES ('jeans', 20.0, 1), ('hammer', 42.2, 2)")
+
+# retrieve the items again
+res <- dbGetQuery(con, "SELECT * FROM items")
+print(res)
+#     item value count
+# 1  jeans  20.0     1
+# 2 hammer  42.2     2
+```
+
+```{r}
+print(res)
+```
+
+## SQL queries
+
+**NOTE**: below, if running the first time, un-comment anything with `##`
+
+```{r}
+## dbWriteTable(con, "iris_table", iris)
+res <- dbGetQuery(con, "SELECT * FROM iris_table LIMIT 1")
+print(res)
+#   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
+# 1          5.1         3.5          1.4         0.2  setosa
+```
+
+```{r}
+
+res <- dbGetQuery(con, "SELECT * FROM iris_table LIMIT 10")
+print(res)
+```
+
+**NOTE**: below, if running the first time, un-comment anything with `##`
+
+```{r}
+starsmall <- starwars |> select(!(where(is_list)))
+## dbWriteTable(con, "star_table", starsmall)
+```
+
+```{r}
+res <- dbGetQuery(con, "SELECT * FROM star_table")
+print(res)
+```
+
+```{r}
+# List all the tables in the database
+tables <- dbListTables(con)
+
+# Print the list of tables
+print(tables)
+```
+
+### dbplyr
+
+dplyr-style query of duckdb table, or any database, via {d**b**plyr}. i.e. {dbplyr} translates dplyr verbs into SQL to queries of remote or resident databases.
+
+```{r}
+a_query <- tbl(con, "star_table") |>
+  filter(mass < 500,
+         !is.na(gender)) |> 
+  group_by(gender) |>
+  summarise(mean_mass = mean(mass, na.rm = TRUE), 
+            mean_height = mean(height, na.rm = TRUE)) 
+a_query
+
+my_resident_r_df <- a_query |>
+  collect()
+```
+
+### viz
+
+```{r}
+my_resident_r_df |>
+  pivot_longer(-gender) |> 
+  ggplot(aes(y = gender, x = value)) +
+  geom_col(aes(fill = name), position = "dodge")
+```
+
+### List duckdb tables
+
+```{r}
+# List all the tables in the database
+tables <- dbListTables(con)
+
+# Print the list of tables
+print(tables)
+```
+
+## virtual table
+
+```{r}
+# library("DBI")
+# library("dplyr")
+### dbDisconnect(con, shutdown=TRUE)
+# con <- dbConnect(duckdb::duckdb())
+### con <- dbConnect(duckdb::duckdb(), dbdir = "my-db.duckdb", read_only = FALSE)
+duckdb::duckdb_register(con, "flights", nycflights13::flights)  # virtual table, no data is copied
+
+tbl(con, "flights") |>
+  group_by(dest) |>
+  summarise(delay = mean(dep_time, na.rm = TRUE)) |>
+  collect()
+
+```
+
+### List duckdb tables
+
+`flights` is a virtual table because `duckdb::duckdb_register`
+
+```{r}
+# duckdb> PRAGMA table_info();
+
+
+# Connect to the DuckDB database
+# con <- dbConnect(duckdb(), "mydatabase")
+
+# List all the tables in the database
+tables <- dbListTables(con)
+
+# Print the list of tables
+print(tables)
+```
+
+## Other
+
+### list table fields
+
+```{r}
+duckdb::dbListFields(con, "star_table")
+print("XMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXM")
+duckdb::dbListFields(con, "flights")
+print("XMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXM")
+duckdb::dbListFields(con, "items")
+print("XMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXMXM")
+duckdb::dbListFields(con, "iris_table")
+DBI::dbListFields(con, "iris_table")
+```
+
+### dbshutdown / disconnect con\[nection\]
+
+Just a note: There are a lot of useful features to the {dbplyr} with {DBI} packages that allows DB connections without needing to write SQL. If one prefers SQL, only DBI is crucial. Among the values, a dataframe can remain in the database and therefor not tax R's RAM. Ideally, summary tables are processed and generated by the database executable, then transferred as dataframe(s) into R's RAM for further manipulation by ggplot2. If one is more comfortable with dplyr-verbs than SQL, then {dbplyr} is for it's ability to translate the grammatically efficient dplyr syntax into the persnickety 1970s verbosity of SQL; an amazing way to go.
+
+```{r}
+# duckdb::duckdb_shutdown()
+dbDisconnect(con, shutdown=TRUE)
+```
