@@ -1,0 +1,49 @@
+---
+title: "square root - duckdb leverage"
+format: html
+---
+
+from slack / code by Marc-Aurèle Rivière
+
+```{r}
+library(tidyverse)
+library(duckdb)
+```
+
+## data
+
+```{r}
+n_row <- 100
+
+A <- data.frame(x = rpois(n_row, 5), y = rpois(n_row, 10), z = rpois(n_row, 15)) |> mutate(ID = row_number(), .before = 1)
+B <- data.frame(x = rpois(n_row, 5), y = rpois(n_row, 10), z = rpois(n_row, 15)) |> mutate(ID = row_number(), .before = 1)
+
+
+A 
+B
+```
+
+```{r}
+eucl_duckdb <- function(A, B) {
+  
+  copy_to(con, A, overwrite = TRUE)
+  copy_to(con, B, overwrite = TRUE)
+  
+  return(
+    cross_join(tbl(con, "A"), tbl(con, "B")) 
+    |> transmute(ID.x, ID.y, eucl_dist = sqrt((x.y - x.x)^2 + (y.y - y.x)^2 + (z.y - z.x)^2))
+    |> collect()
+  )
+}
+```
+
+```{r}
+con <- dbConnect(duckdb::duckdb(), dbdir = "my-euclid-db.duckdb", read_only = FALSE)
+eucl_duckdb(A, B)
+```
+
+## shutdown duckdb
+
+```{r}
+dbDisconnect(con, shutdown=TRUE)
+```
