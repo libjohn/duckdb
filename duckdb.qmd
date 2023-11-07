@@ -2,7 +2,7 @@
 title: "duckdb"
 author: "John Little"
 
-editor: "visual"
+editor: "source"
 ---
 
 ## Install duckb
@@ -90,6 +90,8 @@ starsmall <- starwars |> select(!(where(is_list)))
 ```{r}
 res <- dbGetQuery(con, "SELECT * FROM star_table")
 print(res)
+
+
 ```
 
 ```{r}
@@ -99,6 +101,10 @@ tables <- dbListTables(con)
 # Print the list of tables
 print(tables)
 ```
+```{r}
+big_star <- tbl(con, "starwars_table")
+```
+
 
 ### dbplyr
 

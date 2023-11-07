@@ -47,3 +47,33 @@ eucl_duckdb(A, B)
 ```{r}
 dbDisconnect(con, shutdown=TRUE)
 ```
+
+\-\--
+
+## translate
+
+```{r}
+# copy_to(con, A, overwrite = TRUE)
+# copy_to(con, B, overwrite = TRUE)
+A
+B
+ 
+# cross_join(tbl(con, "A"), tbl(con, "B")) 
+
+cross_join(A, B)
+
+    # |> transmute(ID.x, ID.y, eucl_dist = sqrt((x.y - x.x)^2 + (y.y - y.x)^2 + (z.y - z.x)^2))
+
+cross_join(A, B) |> 
+  transmute(ID.x, ID.y, 
+            eucl_dist = sqrt((x.y - x.x)^2 + (y.y - y.x)^2 + (z.y - z.x)^2))
+ 
+```
+
+## random HTML
+
+<details>
+<summary>Text that appears when folded</summary>
+Contents that appear when unfolded.
+Can contain many lines, as well as code chunks.
+</details>
