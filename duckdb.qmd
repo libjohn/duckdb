@@ -21,6 +21,38 @@ library(DBI)  # so I can connect to the db file and then query via dplyr verbs
 
 ```
 
+## Hello World
+
+from: <https://duckdb.org/docs/installation/?version=latest&environment=r>
+
+```{r}
+# library("DBI")
+# library(tidyverse)
+con = dbConnect(duckdb::duckdb(), ":memory:")
+dbWriteTable(con, "iris", iris)
+# dbGetQuery(con, 'SELECT "Species", MIN("Sepal.Width") FROM iris GROUP BY "Species"')
+
+dbListTables(con)
+# dplyr::db_list_tables(con)
+
+my_db_connection_iris <- tbl(con, "iris")
+  
+my_db_connection_iris
+
+my_db_connection_iris |> 
+  select(Sepal.Length, Species) |> 
+  filter(Species == "setosa")
+
+duckdb_results <- my_db_connection_iris |> 
+  select(Sepal.Length, Species) |> 
+  filter(Species == "setosa") |> 
+  collect()
+duckdb_results
+
+# duckdb::duckdb_shutdown()
+dbDisconnect(con, shutdown=TRUE)
+```
+
 Most of the information below comes from this [duckdb documentation](https://duckdb.org/docs/archive/0.8.1/api/r).
 
 ## Establish DB connection
@@ -101,10 +133,10 @@ tables <- dbListTables(con)
 # Print the list of tables
 print(tables)
 ```
+
 ```{r}
 big_star <- tbl(con, "starwars_table")
 ```
-
 
 ### dbplyr
 
